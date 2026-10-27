@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { once } from 'node:events';
+import { createServer } from 'node:net';
 import sql from 'mssql';
 import { createCache } from '../cache.js';
 import { createApp } from '../app.js';
@@ -43,7 +44,12 @@ before(async () => {
   pool = await new sql.ConnectionPool(databaseConfig(database)).connect();
   const workflows = (await readFile(new URL('../sql/workflows.sql', import.meta.url), 'utf8')).replaceAll('USE RecruitmentDb;', `USE [${database}];`);
   await runBatches(pool, workflows);
-  podman('run', '-d', '--name', container, '-p', '127.0.0.1::6379', '--memory', '128m', 'docker.io/library/redis:8-alpine', 'redis-server', '--save', '', '--appendonly', 'no');
+  // An explicit host port survives Docker restarts; automatic mappings may change.
+  const probe = createServer();
+  probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
+  const redisPort = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  podman('run', '-d', '--name', container, '-p', `127.0.0.1:${redisPort}:6379`, '--memory', '128m', 'docker.io/library/redis:8-alpine', 'redis-server', '--save', '', '--appendonly', 'no');
   const port = Number(podman('port', container, '6379/tcp').split(':').at(-1));
   cache = createCache(`redis://127.0.0.1:${port}`, 2);
   await until(() => cache.ready);

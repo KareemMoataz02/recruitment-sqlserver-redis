@@ -6,67 +6,67 @@ TAP version 13
 # Subtest: first count is a real Redis MISS; second is HIT without another SQL count query
 ok 1 - first count is a real Redis MISS; second is HIT without another SQL count query
   ---
-  duration_ms: 3010.122683
+  duration_ms: 2107.317413
   type: 'test'
   ...
 # Subtest: Redis TTL expires and the next request queries SQL again
 ok 2 - Redis TTL expires and the next request queries SQL again
   ---
-  duration_ms: 2214.014784
+  duration_ms: 2190.652634
   type: 'test'
   ...
 # Subtest: successful atomic application creation invalidates and refreshes the count
 ok 3 - successful atomic application creation invalidates and refreshes the count
   ---
-  duration_ms: 114.228297
+  duration_ms: 117.782756
   type: 'test'
   ...
 # Subtest: duplicate skill rolls back application and status without evicting valid cache
 ok 4 - duplicate skill rolls back application and status without evicting valid cache
   ---
-  duration_ms: 61.933507
+  duration_ms: 48.146971
   type: 'test'
   ...
 # Subtest: duplicate application and foreign-key errors return useful responses
 ok 5 - duplicate application and foreign-key errors return useful responses
   ---
-  duration_ms: 38.929776
+  duration_ms: 28.866957
   type: 'test'
   ...
 # Subtest: zero counts cache correctly, missing applicants remain 404, invalid inputs are rejected
 ok 6 - zero counts cache correctly, missing applicants remain 404, invalid inputs are rejected
   ---
-  duration_ms: 86.33299
+  duration_ms: 29.412651
   type: 'test'
   ...
 # Subtest: local mutation token and same-origin checks block unauthorized calls
 ok 7 - local mutation token and same-origin checks block unauthorized calls
   ---
-  duration_ms: 11.243945
+  duration_ms: 21.100106
   type: 'test'
   ...
 # Subtest: per-applicant locking prevents concurrent stale fills during a committed write
 ok 8 - per-applicant locking prevents concurrent stale fills during a committed write
   ---
-  duration_ms: 105.464355
+  duration_ms: 35.406995
   type: 'test'
   ...
 # Subtest: corrupt cache values fall back to SQL rather than returning invalid data
 ok 9 - corrupt cache values fall back to SQL rather than returning invalid data
   ---
-  duration_ms: 28.096467
+  duration_ms: 15.109287
   type: 'test'
   ...
 # Subtest: real Redis outage uses SQL, allows committed writes, then recovers without stale counts
 ok 10 - real Redis outage uses SQL, allows committed writes, then recovers without stale counts
   ---
-  duration_ms: 922.360309
+  duration_ms: 749.64676
   type: 'test'
   ...
 # Subtest: original recruitment database row counts and checksums are unchanged
 ok 11 - original recruitment database row counts and checksums are unchanged
   ---
-  duration_ms: 33.685799
+  duration_ms: 18.098914
   type: 'test'
   ...
 1..11
@@ -77,4 +77,4 @@ ok 11 - original recruitment database row counts and checksums are unchanged
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 8572.83228
+# duration_ms 7502.42123
