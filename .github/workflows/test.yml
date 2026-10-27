@@ -1,0 +1,32 @@
+name: Integration tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONTAINER_ENGINE: docker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Generate ephemeral local configuration
+        run: |
+          ./scripts/init-env.sh
+          sed -i 's/CONTAINER_ENGINE=podman/CONTAINER_ENGINE=docker/' .env
+      - name: Start SQL Server and Redis
+        run: docker compose up -d --wait
+      - run: npm run setup
+      - name: Run actual SQL and Redis integration tests
+        run: npm test
+      - name: Clean up runner containers and volume
+        if: always()
+        run: docker compose down -v

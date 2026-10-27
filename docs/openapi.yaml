@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: RecruitmentDb Redis API
+  version: 1.0.0
+  description: Single-process loopback-only cache lab. POST uses the token embedded in the local UI. Direct SQL writes bypass invalidation until TTL expiry or manual clearing.
+servers:
+  - url: http://127.0.0.1:3102
+paths:
+  /api/applicants/{id}/application-count:
+    parameters:
+      - $ref: '#/components/parameters/ApplicantId'
+    get:
+      summary: Read a cached applicant application count
+      responses:
+        '200':
+          description: Count from Redis or SQL Server
+          headers:
+            X-Cache:
+              schema: {type: string, enum: [HIT, MISS, BYPASS]}
+            X-Cache-Key:
+              schema: {type: string}
+            X-Cache-TTL:
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApplicantCount'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/applicants/{id}/applications:
+    parameters:
+      - $ref: '#/components/parameters/ApplicantId'
+    post:
+      summary: Create an application and skill association atomically
+      security: [{LocalToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_ad_id, skill_id]
+              properties:
+                job_ad_id: {type: integer, minimum: 1, maximum: 2147483647}
+                skill_id: {type: integer, minimum: 1, maximum: 2147483647}
+      responses:
+        '201':
+          description: SQL committed. Cache failure does not change this success response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application_id, applicant_id, cache_invalidated]
+                properties:
+                  application_id: {type: integer}
+                  applicant_id: {type: integer}
+                  cache_invalidated: {type: boolean}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409':
+          description: Duplicate application or applicant skill; transaction rolled back
+        '413': {description: Request body exceeds 4096 bytes}
+        '415': {description: application/json is required}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/applicants/{id}/cache:
+    parameters:
+      - $ref: '#/components/parameters/ApplicantId'
+    post:
+      summary: Clear one applicant's cached count
+      security: [{LocalToken: []}]
+      responses:
+        '200':
+          description: Key cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cleared: {type: boolean}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/applicants/{id}/options:
+    parameters:
+      - $ref: '#/components/parameters/ApplicantId'
+    get:
+      summary: List unused job and skill choices for the applicant ID
+      responses:
+        '200':
+          description: Available choices; this route does not assert that the applicant exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        job_ad_id: {type: integer}
+                        title: {type: string}
+                  skills:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        skill_id: {type: integer}
+                        skill_name: {type: string}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/metrics:
+    get:
+      summary: Read per-process diagnostic counters
+      responses:
+        '200':
+          description: Cache and SQL count-query metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hits: {type: integer}
+                  misses: {type: integer}
+                  bypasses: {type: integer}
+                  sqlCountQueries: {type: integer}
+                  invalidations: {type: integer}
+                  redisReady: {type: boolean}
+                  ttlSeconds: {type: integer}
+  /health:
+    get:
+      summary: Check SQL readiness and Redis availability
+      responses:
+        '200':
+          description: API and SQL are ready. Redis may be unavailable without failing the API.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api: {type: string, enum: [ready]}
+                  sqlserver: {type: string, enum: [ready]}
+                  redis: {type: string, enum: [ready, unavailable]}
+                  cache_ttl_seconds: {type: integer}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  securitySchemes:
+    LocalToken:
+      type: http
+      scheme: bearer
+      description: Random per-process token embedded in the same-origin HTML page
+  parameters:
+    ApplicantId:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, minimum: 1, maximum: 2147483647}
+  schemas:
+    ApplicantCount:
+      type: object
+      required: [applicant_id, full_name, application_count]
+      properties:
+        applicant_id: {type: integer}
+        full_name: {type: string}
+        application_count: {type: integer, minimum: 0}
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string}
+  responses:
+    BadRequest:
+      description: Invalid positive SQL integer or missing referenced entity
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: Applicant not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Unauthorized:
+      description: Missing or incorrect local bearer token
+    Forbidden:
+      description: Host or browser origin is not allowed
+    Unavailable:
+      description: SQL failure, or Redis unavailable for an explicit cache-clear operation
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
