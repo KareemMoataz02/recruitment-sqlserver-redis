@@ -1,0 +1,14 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: recruitment
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30103
+        hostPort: 3103
+        listenAddress: 127.0.0.1
+        protocol: TCP
+      - containerPort: 30091
+        hostPort: 9091
+        listenAddress: 127.0.0.1
+        protocol: TCP

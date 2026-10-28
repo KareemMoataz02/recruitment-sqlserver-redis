@@ -1,0 +1,18 @@
+groups:
+  - name: recruitment
+    rules:
+      - alert: RecruitmentApiDown
+        expr: up{job="recruitment-api"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Recruitment API cannot be scraped"}
+      - alert: RecruitmentSqlUnavailable
+        expr: recruitment_sql_up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Recruitment SQL Server query failed"}
+      - alert: RecruitmentRedisUnavailable
+        expr: redis_up{job="recruitment-redis"} == 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Redis unavailable; API falls back to SQL"}

@@ -8,7 +8,7 @@ A runnable recruitment API with Redis cache-aside caching, an interactive browse
 - Scalar application-count function, validated status-history procedure, and transactional application + skill procedure.
 - Cached applicant-count endpoint, 60-second expiry, post-commit invalidation, and SQL fallback when Redis is unavailable.
 - Browser lab showing `MISS`, `HIT`, `BYPASS`, response time, and SQL count-query totals.
-- Eleven integration tests, isolated test resources, and GitHub Actions CI.
+- Twelve integration tests, isolated test resources, and GitHub Actions CI.
 - [Full project specification](docs/SPECIFICATION.md), [OpenAPI contract](docs/openapi.yaml), [test guide](docs/TESTING.md), editable diagrams, and submission PDFs.
 
 ## Requirements
@@ -123,3 +123,9 @@ Direct SQL/Adminer edits bypass invalidation and become visible after TTL expiry
 Stop the foreground API with Ctrl+C. Stop Compose services with `docker compose down` or `podman compose down`; the SQL volume is retained. Redis has no disk persistence. To deliberately delete this clone's SQL data too, use `compose down -v` with your chosen engine.
 
 No `.env`, passwords, API tokens, database backups, node_modules, or unrelated local files are committed.
+
+## Kubernetes and Grafana
+
+See [the local Kubernetes guide](docs/KUBERNETES.md) for the kind deployment, database migration, persistent storage, Prometheus scraping/alerts, and integration with the existing local Grafana dashboard. Kubernetes uses app port 3103 and Prometheus port 9091, keeping the original lab separate.
+
+The maintained `@prometheus-io/client` dependency exposes `/metrics`; `/live` is the process liveness probe, while `/health` remains SQL-aware readiness. Metrics include cache outcomes, HTTP and SQL query latency, process resources, SQL availability, and Redis client readiness. Redis server metrics come from a sidecar exporter.

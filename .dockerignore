@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+node_modules
+docs
+monitoring
+k8s
+test
+*.log
+*.bak
+
+.local/

@@ -7,7 +7,7 @@ const pool = await new sql.ConnectionPool(databaseConfig()).connect();
 const cache = createCache(process.env.REDIS_URL || 'redis://127.0.0.1:6380', Number(process.env.CACHE_TTL_SECONDS || 60));
 const { server } = createApp({ pool, cache });
 try {
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, process.env.HOST || '127.0.0.1', resolve); });
   console.log(`Recruitment cache demo: http://127.0.0.1:${port}`);
 } catch (error) {
   cache.close(); await pool.close();

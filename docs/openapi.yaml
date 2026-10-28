@@ -6,6 +6,20 @@ info:
 servers:
   - url: http://127.0.0.1:3102
 paths:
+  /live:
+    get:
+      summary: Process liveness, independent of SQL and Redis availability
+      responses:
+        '200': {description: API process is alive}
+  /metrics:
+    get:
+      summary: Prometheus text metrics for HTTP, cache, SQL, Redis readiness, and Node resources
+      responses:
+        '200':
+          description: Prometheus exposition format
+          content:
+            text/plain:
+              schema: {type: string}
   /api/applicants/{id}/application-count:
     parameters:
       - $ref: '#/components/parameters/ApplicantId'

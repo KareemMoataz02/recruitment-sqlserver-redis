@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: recruitment
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sqlserver
+  namespace: recruitment
+spec:
+  selector: {app: recruitment-sqlserver}
+  ports: [{name: sql, port: 1433, targetPort: 1433}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sqlserver
+  namespace: recruitment
+spec:
+  serviceName: sqlserver
+  replicas: 1
+  selector:
+    matchLabels: {app: recruitment-sqlserver}
+  template:
+    metadata:
+      labels: {app: recruitment-sqlserver}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsUser: 10001, runAsGroup: 0, fsGroup: 10001}
+      containers:
+        - name: sqlserver
+          image: mcr.microsoft.com/mssql/server:2025-latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 1433}]
+          env:
+            - {name: ACCEPT_EULA, value: "Y"}
+            - {name: MSSQL_PID, value: Developer}
+            - {name: MSSQL_MEMORY_LIMIT_MB, value: "2048"}
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: recruitment-secrets, key: DB_PASSWORD}
+          resources:
+            requests: {cpu: 500m, memory: 2Gi}
+            limits: {cpu: "2", memory: 4Gi}
+          volumeMounts: [{name: sql-data, mountPath: /var/opt/mssql}]
+          startupProbe:
+            tcpSocket: {port: 1433}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["bash", "-c", "SQLCMDPASSWORD=\"$MSSQL_SA_PASSWORD\" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q 'SELECT 1' -o /dev/null"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+      terminationGracePeriodSeconds: 60
+  volumeClaimTemplates:
+    - metadata: {name: sql-data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 8Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: recruitment
+spec:
+  selector: {app: recruitment-redis}
+  ports:
+    - {name: redis, port: 6379, targetPort: 6379}
+    - {name: metrics, port: 9121, targetPort: 9121}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: recruitment
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: recruitment-redis}
+  template:
+    metadata:
+      labels: {app: recruitment-redis}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1001, fsGroup: 1001}
+      containers:
+        - name: redis
+          image: docker.io/library/redis:8-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+          ports: [{containerPort: 6379}]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 192Mi}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: redis-data, mountPath: /data}]
+          readinessProbe:
+            exec: {command: [redis-cli, ping]}
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 6379}
+            periodSeconds: 10
+        - name: exporter
+          image: docker.io/oliver006/redis_exporter:v1.93.0
+          imagePullPolicy: IfNotPresent
+          env: [{name: REDIS_ADDR, value: "redis://127.0.0.1:6379"}]
+          ports: [{containerPort: 9121}]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          readinessProbe:
+            httpGet: {path: /metrics, port: 9121}
+            periodSeconds: 10
+      volumes: [{name: redis-data, emptyDir: {}}]

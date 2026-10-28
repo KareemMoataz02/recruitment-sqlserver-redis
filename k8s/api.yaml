@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recruitment-api-config
+  namespace: recruitment
+data:
+  HOST: "0.0.0.0"
+  PORT: "3102"
+  DB_HOST: "sqlserver"
+  DB_PORT: "1433"
+  DB_NAME: "RecruitmentDb"
+  DB_USER: "sa"
+  DB_TRUST_CERTIFICATE: "true"
+  REDIS_URL: "redis://redis:6379"
+  CACHE_TTL_SECONDS: "60"
+  ALLOWED_HOSTS: "recruitment-api,recruitment-api.recruitment.svc.cluster.local"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recruitment-api
+  namespace: recruitment
+spec:
+  type: NodePort
+  selector: {app: recruitment-api}
+  ports: [{name: http, port: 3102, targetPort: 3102, nodePort: 30103}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recruitment-api
+  namespace: recruitment
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: recruitment-api}
+  template:
+    metadata:
+      labels: {app: recruitment-api}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1001}
+      initContainers:
+        - name: install-workflows
+          image: localhost/recruitment-cache-api:k8s
+          imagePullPolicy: Never
+          command: [node, setup.js]
+          envFrom:
+            - configMapRef: {name: recruitment-api-config}
+            - secretRef: {name: recruitment-secrets}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+      containers:
+        - name: api
+          image: localhost/recruitment-cache-api:k8s
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef: {name: recruitment-api-config}
+            - secretRef: {name: recruitment-secrets}
+          ports: [{containerPort: 3102}]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 384Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          startupProbe:
+            httpGet: {path: /live, port: 3102}
+            periodSeconds: 3
+            failureThreshold: 40
+          readinessProbe:
+            httpGet: {path: /health, port: 3102}
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /live, port: 3102}
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec: {command: [node, -e, "setTimeout(()=>{},3000)"]}
+      terminationGracePeriodSeconds: 20

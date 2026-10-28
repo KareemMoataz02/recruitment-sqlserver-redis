@@ -3,9 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import sql from 'mssql';
 import { publicDirectory } from './config.js';
+import { createMetrics } from './metrics.js';
 
 export function createApp({ pool, cache, token = randomBytes(32).toString('hex') }) {
   const stats = { hits: 0, misses: 0, bypasses: 0, sqlCountQueries: 0, invalidations: 0 };
+  const telemetry = createMetrics({ stats, cache, pool });
   const locks = new Map();
   // Single-process demo: serialize reads/writes per applicant to avoid stale-fill races.
   async function locked(id, fn) {
@@ -43,9 +45,12 @@ export function createApp({ pool, cache, token = randomBytes(32).toString('hex')
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'");
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
+      telemetry.observe(req, res, url.pathname);
       // Only direct local clients and this page may call the API. No cross-origin CORS.
       const host = req.headers.host || '';
-      if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return send(res, 403, { error: 'Local access only.' });
+      const probe = ['/live', '/health', '/metrics'].includes(url.pathname);
+      const allowedHosts = (process.env.ALLOWED_HOSTS || '').split(',').filter(Boolean);
+      if (!probe && !/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host) && !allowedHosts.includes(host.split(':')[0])) return send(res, 403, { error: 'Local access only.' });
       if (req.headers['sec-fetch-site'] === 'cross-site' || (req.headers.origin && req.headers.origin !== `http://${host}`)) {
         return send(res, 403, { error: 'Cross-origin requests are not allowed.' });
       }
@@ -55,6 +60,11 @@ export function createApp({ pool, cache, token = randomBytes(32).toString('hex')
         if (name === 'index.html') content = content.replace('__TOKEN__', token);
         res.writeHead(200, { 'Content-Type': name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8' });
         return res.end(content);
+      }
+      if (req.method === 'GET' && url.pathname === '/live') return send(res, 200, { api: 'alive' });
+      if (req.method === 'GET' && url.pathname === '/metrics') {
+        res.writeHead(200, { 'Content-Type': telemetry.registry.contentType });
+        return res.end(await telemetry.registry.metrics());
       }
       if (req.method === 'GET' && url.pathname === '/health') {
         await pool.request().query('SELECT 1 AS ok;');
@@ -78,10 +88,13 @@ export function createApp({ pool, cache, token = randomBytes(32).toString('hex')
             }
           } catch { mode = 'BYPASS'; }
           stats.sqlCountQueries++;
-          const result = await pool.request().input('id', sql.Int, id).query(`
+          const endSqlTimer = telemetry.sqlDuration.startTimer();
+          let result;
+          try { result = await pool.request().input('id', sql.Int, id).query(`
             SELECT applicant_id, full_name,
               dbo.fn_ApplicantApplicationCount(applicant_id) AS application_count
-            FROM dbo.APPLICANT WHERE applicant_id=@id;`);
+            FROM dbo.APPLICANT WHERE applicant_id=@id;`); }
+          finally { endSqlTimer(); }
           if (!result.recordset.length) return send(res, 404, { error: 'Applicant not found.' });
           const data = result.recordset[0];
           try { await cache.set(id, data); } catch { mode = 'BYPASS'; }

@@ -21,6 +21,7 @@ The fixture contains two applications per applicant, so expectations remain dete
 | 9 | Corrupt entry | SQL fallback and replacement, then a valid cache HIT |
 | 10 | Real outage | Stop Redis; BYPASS reads and committed writes work; restart and discard a simulated stale value |
 | 11 | Original DB | Counts and checksums match the pre-test snapshot |
+| 12 | Monitoring and probes | Prometheus metrics present, SQL/Redis readiness gauges valid, Kubernetes probe hosts accepted without accepting untrusted application hosts |
 
 GitHub Actions performs these against actual SQL Server/Redis containers. A source folder includes local test output as evidence; CI is authoritative for each pushed revision.
 

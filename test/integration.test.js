@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
 import sql from 'mssql';
 import { createCache } from '../cache.js';
 import { createApp } from '../app.js';
@@ -168,4 +169,25 @@ test('real Redis outage uses SQL, allows committed writes, then recovers without
 });
 test('original recruitment database row counts and checksums are unchanged', async () => {
   assert.deepEqual(await liveSnapshot(), original);
+});
+
+test('Prometheus metrics and Kubernetes probes work without widening application access', async () => {
+  await count(1);
+  const metrics = await fetch(base + '/metrics');
+  assert.equal(metrics.status, 200);
+  assert.match(metrics.headers.get('content-type'), /text\/plain|openmetrics/);
+  const text = await metrics.text();
+  assert.match(text, /recruitment_cache_hits_total \d+/);
+  assert.match(text, /recruitment_sql_up 1/);
+  assert.match(text, /recruitment_redis_ready 1/);
+  assert.match(text, /recruitment_http_request_duration_seconds_bucket/);
+  assert.match(text, /recruitment_process_resident_memory_bytes/);
+  function hostStatus(path, host) {
+    return new Promise((resolve, reject) => {
+      const req = httpRequest(base + path, { headers: { Host: host } }, res => { res.resume(); resolve(res.statusCode); });
+      req.on('error', reject); req.end();
+    });
+  }
+  assert.equal(await hostStatus('/live', '10.244.0.5:3102'), 200);
+  assert.equal(await hostStatus('/api/applicants/1/application-count', 'untrusted.example:3102'), 403);
 });
