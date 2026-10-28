@@ -81,3 +81,7 @@ kubectl --kubeconfig "$KUBECONFIG" top pods -n recruitment
 ```
 
 The local overlay uses `--kubelet-insecure-tls` because kind's kubelet serving certificate lacks an IP SAN for its InternalIP. This is scoped to metrics-server's kubelet connection in this local lab; use trusted kubelet serving certificates for a production cluster. API authentication and RBAC remain enabled. Allow initial scrapes to finish, then reopen K9s if it cached the previously absent Metrics API. Metrics-server supplies current CPU and memory to K9s and `kubectl top`; Prometheus and Grafana supply application/cache history independently.
+
+### Scheduled database backups
+
+The SQL StatefulSet enables SQL Server Agent. The deployment script installs daily full and 15-minute log backup jobs after database initialization. See [SQL Server Agent](SQL-AGENT.md) for schedules, storage limits, verification, and manual setup.

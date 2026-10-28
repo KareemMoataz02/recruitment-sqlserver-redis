@@ -57,6 +57,7 @@ kubectl -n recruitment create configmap recruitment-prometheus --from-file=prome
 kubectl apply -f k8s/prometheus.yaml
 kubectl -n recruitment rollout status deployment/redis --timeout=180s
 kubectl -n recruitment rollout status deployment/recruitment-api --timeout=300s
+./scripts/configure-agent-backups.sh kubernetes
 kubectl -n recruitment rollout status deployment/prometheus --timeout=180s
 kubectl apply -k k8s/metrics-server
 kubectl -n kube-system rollout status deployment/metrics-server --timeout=180s

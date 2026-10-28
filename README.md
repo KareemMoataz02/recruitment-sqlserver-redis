@@ -9,6 +9,7 @@ A runnable recruitment API with Redis cache-aside caching, an interactive browse
 - Cached applicant-count endpoint, 60-second expiry, post-commit invalidation, and SQL fallback when Redis is unavailable.
 - Browser lab showing `MISS`, `HIT`, `BYPASS`, response time, and SQL count-query totals.
 - Twelve integration tests, isolated test resources, and GitHub Actions CI.
+- [SQL Server Agent backup jobs](docs/SQL-AGENT.md): daily full backups, log backups every 15 minutes, and verified restore checks.
 - [Full project specification](docs/SPECIFICATION.md), [OpenAPI contract](docs/openapi.yaml), [test guide](docs/TESTING.md), editable diagrams, and submission PDFs.
 
 ## Requirements

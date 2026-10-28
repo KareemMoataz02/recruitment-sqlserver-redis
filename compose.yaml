@@ -5,6 +5,7 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
+      MSSQL_AGENT_ENABLED: "true"
       MSSQL_SA_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       MSSQL_MEMORY_LIMIT_MB: "2048"
     ports:

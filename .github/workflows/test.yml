@@ -25,6 +25,12 @@ jobs:
       - name: Start SQL Server and Redis
         run: docker compose up -d --wait
       - run: npm run setup
+      - name: Configure SQL Server Agent backups
+        run: CONTAINER_ENGINE=docker ./scripts/configure-agent-backups.sh container
+      - name: Verify Agent jobs and full-plus-log restore
+        run: |
+          sql_container_id="$(docker compose ps -q sqlserver)"
+          docker exec -i "$sql_container_id" bash -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -w 220' < sql/verify-agent-backups.sql
       - name: Run actual SQL and Redis integration tests
         run: npm test
       - name: Clean up runner containers and volume
